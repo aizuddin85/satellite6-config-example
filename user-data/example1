@@ -1,0 +1,68 @@
+#!/bin/bash
+
+<%#
+kind: user_data
+name: KVM User Data
+model: ProvisioningTemplate
+oses:
+- CentOS
+- Redhat
+-%>
+
+
+# Get variables
+<%
+  rhel_compatible = @host.operatingsystem.family == 'Redhat' && @host.operatingsystem.name != 'Fedora'
+  pm_set = @host.puppetmaster.empty? ? false : true
+  proxy_uri = host_param('http-proxy') ? "http://#{host_param('http-proxy')}:#{host_param('http-proxy-port')}" : nil
+  puppet_enabled = pm_set || host_param_true?('force-puppet')
+%>
+
+
+# Fix /etc/hosts
+<%= snippet 'fix_hosts' %>
+
+# Setup networking
+<%= snippet('setup_nic') %>
+
+
+
+# Register host
+<%= snippet 'redhat_register' %>
+
+# Update all packages
+<% unless host_param_false?('package_upgrade') -%>
+# update all the base packages from the updates repository
+if [ -f /usr/bin/dnf ]; then
+  dnf -y update
+else
+  yum -t -y update
+fi
+<% end -%>
+
+#update local time
+echo "updating system time"
+yum -y install ntpdate
+/usr/sbin/ntpdate -sub <%= host_param('ntp-server') || '0.fedora.pool.ntp.org' %>
+/usr/sbin/hwclock --systohc
+
+# Configure SSH Keys
+<%= snippet('remote_ssh_keys') %>
+
+# Setting up puppet
+<% if puppet_enabled %>
+<% if host_param_true?('enable-puppetlabs-pc1-repo') || host_param_true?('enable-puppetlabs-repo') || host_param_true?('enable-puppetlabs-puppet5-repo') -%>
+<%= snippet 'puppetlabs_repo' %>
+<% end -%>
+<%= snippet 'puppet_setup' %>
+<% end -%>
+
+
+# Call home, we are done
+/usr/bin/curl -o /dev/null -k '<%= foreman_url('built') %>'
+
+
+
+
+
+
