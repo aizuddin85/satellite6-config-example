@@ -1,5 +1,4 @@
 #!/bin/bash
-
 <%#
 kind: user_data
 name: KVM User Data
@@ -9,7 +8,6 @@ oses:
 - Redhat
 -%>
 
-
 # Get variables
 <%
   rhel_compatible = @host.operatingsystem.family == 'Redhat' && @host.operatingsystem.name != 'Fedora'
@@ -18,51 +16,39 @@ oses:
   puppet_enabled = pm_set || host_param_true?('force-puppet')
 %>
 
-
 # Fix /etc/hosts
 <%= snippet 'fix_hosts' %>
 
 # Setup networking
 <%= snippet('setup_nic') %>
 
-
-
 # Register host
 <%= snippet 'redhat_register' %>
 
-# Update all packages
-<% unless host_param_false?('package_upgrade') -%>
-# update all the base packages from the updates repository
-if [ -f /usr/bin/dnf ]; then
-  dnf -y update
-else
-  yum -t -y update
-fi
-<% end -%>
+# Update all erratas
+yum -t -y update
 
 #update local time
-echo "updating system time"
-yum -y install ntpdate
+echo "Installing common resources"
+yum -y install ntpdate vim tree bind-utils git telnet
 /usr/sbin/ntpdate -sub <%= host_param('ntp-server') || '0.fedora.pool.ntp.org' %>
 /usr/sbin/hwclock --systohc
 
 # Configure SSH Keys
 <%= snippet('remote_ssh_keys') %>
 
-# Setting up puppet
-<% if puppet_enabled %>
-<% if host_param_true?('enable-puppetlabs-pc1-repo') || host_param_true?('enable-puppetlabs-repo') || host_param_true?('enable-puppetlabs-puppet5-repo') -%>
-<%= snippet 'puppetlabs_repo' %>
-<% end -%>
+# Configure puppet
 <%= snippet 'puppet_setup' %>
-<% end -%>
 
+# we dont want cloud init to mess up our /etc/hosts
+sed -i 's|^ - update_etc_hosts||g' /etc/cloud/cloud.cfg
 
 # Call home, we are done
 /usr/bin/curl -o /dev/null -k '<%= foreman_url('built') %>'
 
-
-
+# sleep and reboot
+sleep 3
+reboot
 
 
 

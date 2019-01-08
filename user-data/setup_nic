@@ -1,0 +1,5 @@
+nmcli con delete "System eth0"
+nmcli con add type ethernet ifname eth0 con-name eth0 autoconnect yes ipv4.method manual ipv4.addresses <%= @host.ip %>/24 ipv4.gateway <%= @host.subnet.gateway %>  ipv4.dns  <%= @host.subnet.dns_primary %>
+nmcli con reload
+nmcli con up eth0
+hostnamectl set-hostname <%= @host.name %>
